@@ -1,0 +1,2 @@
+[console_scripts]
+checkers_node = checkers_game.checkers_node:main

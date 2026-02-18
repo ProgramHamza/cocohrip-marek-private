@@ -1,0 +1,1 @@
+/home/marek/amavet_ws/build/checkers_msgs/rosidl_typesupport_introspection_c/checkers_msgs/msg/detail/piece__rosidl_typesupport_introspection_c.h

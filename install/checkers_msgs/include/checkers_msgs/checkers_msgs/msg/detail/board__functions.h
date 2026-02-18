@@ -1,0 +1,1 @@
+/home/marek/amavet_ws/build/checkers_msgs/rosidl_generator_c/checkers_msgs/msg/detail/board__functions.h

@@ -1,0 +1,1 @@
+/home/marek/amavet_ws/build/gripper_srv/rosidl_generator_cpp/gripper_srv/srv/detail/gripper_service__struct.hpp

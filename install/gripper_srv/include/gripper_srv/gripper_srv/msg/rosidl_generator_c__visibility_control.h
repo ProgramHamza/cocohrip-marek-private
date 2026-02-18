@@ -1,0 +1,1 @@
+/home/marek/amavet_ws/build/gripper_srv/rosidl_generator_c/gripper_srv/msg/rosidl_generator_c__visibility_control.h

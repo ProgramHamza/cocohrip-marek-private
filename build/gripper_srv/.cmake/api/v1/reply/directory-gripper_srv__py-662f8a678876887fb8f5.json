@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "gripper_srv__py",
+		"source" : "/home/marek/amavet_ws/build/gripper_srv/gripper_srv__py"
+	}
+}

@@ -1,0 +1,1 @@
+/home/marek/amavet_ws/build/checkers_msgs/ament_cmake_export_dependencies/ament_cmake_export_dependencies-extras.cmake

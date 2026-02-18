@@ -1,0 +1,1 @@
+/home/marek/amavet_ws/build/checkers_msgs/rosidl_typesupport_introspection_cpp/checkers_msgs/msg/detail/robot_move__rosidl_typesupport_introspection_cpp.hpp

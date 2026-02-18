@@ -1,0 +1,1 @@
+/home/marek/amavet_ws/build/checkers_msgs/rosidl_generator_c/checkers_msgs/msg/rosidl_generator_c__visibility_control.h

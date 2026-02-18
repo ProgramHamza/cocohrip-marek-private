@@ -1,0 +1,1 @@
+/home/marek/amavet_ws/build/checkers_msgs/rosidl_typesupport_fastrtps_cpp/checkers_msgs/msg/rosidl_typesupport_fastrtps_cpp__visibility_control.h
