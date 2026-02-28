@@ -1,9 +1,16 @@
+import sys
+from pathlib import Path
 import pygame
 from copy import deepcopy
 
-from checkers_game.constants import WIDTH, HEIGHT, SQUARE_SIZE, WHITE, BLACK, BLUE, RED
-from checkers_game.checkers.board import Board
-from checkers_game.minimax.algorithm import minimax
+# Ensure package root (folder that contains __init__.py) is on sys.path
+PACKAGE_ROOT = Path(__file__).resolve().parent.parent
+if str(PACKAGE_ROOT) not in sys.path:
+    sys.path.insert(0, str(PACKAGE_ROOT))
+
+from .constants import WIDTH, HEIGHT, SQUARE_SIZE, WHITE, BLACK, BLUE, RED
+from .checkers.board import Board
+from .minimax.algorithm import minimax
 
 
 FPS = 60

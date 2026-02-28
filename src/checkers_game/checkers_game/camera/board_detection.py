@@ -1,15 +1,17 @@
 import cv2
 from matplotlib.pyplot import imshow
-from checkers_game.camera.ximea_camera import XimeaCamera
+from .ximea_camera import XimeaCamera
+from .grid_corner_detector import GridCornerDetector
 import numpy as np
 import copy
-from checkers_game.checkers.piece import Piece
-from checkers_game.constants import BLACK, ROWS, RED, SQUARE_SIZE, COLS, WHITE, GREY, BROWN
+from ..checkers.piece import Piece
+from ..constants import BLACK, ROWS, RED, SQUARE_SIZE, COLS, WHITE, GREY, BROWN
 
 class BoardDetection:
 
     def __init__(self, ximeaCamera):
         self.ximeaCamera = ximeaCamera
+        self.grid_detector = GridCornerDetector()
         self._init()
         
 
@@ -56,6 +58,12 @@ class BoardDetection:
         image = self.ximeaCamera.get_camera_image()
         if image is None:
             return None
+
+        # First try grid-based Hough detection
+        grid_result = self.grid_detector.detect_corners(image)
+        if grid_result is not None:
+            print("  → Grid-based detection succeeded")
+            return self._orient_corners(grid_result.corners, image)
         
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         

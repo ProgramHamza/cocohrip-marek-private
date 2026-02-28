@@ -1,0 +1,14 @@
+episode,opponent,agent_color,outcome,rolling_winrate
+1,rl_model_20260225_120931.pth,black,draw,0.5000
+2,rl_model_20260225_120931.pth,white,draw,0.5000
+3,minimax_d1,black,white,0.3333
+4,rl_model.pth,white,draw,0.3750
+5,rl_model.pth,black,draw,0.4000
+6,minimax_d1,white,black,0.3333
+7,rl_model.pth,black,draw,0.3571
+8,rl_model_20260225_120931.pth,white,draw,0.3750
+9,minimax_d1,black,white,0.3333
+10,minimax_d2,white,black,0.3000
+11,minimax_d2,black,white,0.2727
+12,rl_model.pth,white,draw,0.2917
+13,rl_model.pth,black,black,0.3462

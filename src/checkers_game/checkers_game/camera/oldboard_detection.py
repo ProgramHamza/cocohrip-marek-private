@@ -1,14 +1,10 @@
 import cv2
 from matplotlib.pyplot import imshow
-# package-qualified imports to work from installed package
-from checkers_game.camera.ximea_camera import XimeaCamera
 import numpy as np
 import copy
-from checkers_game.checkers.piece import Piece
-from checkers_game.constants import BLACK, ROWS, RED, SQUARE_SIZE, COLS, WHITE, GREY, BROWN
-
-class BoardDetection:
-
+from .ximea_camera import XimeaCamera
+from ..checkers.piece import Piece
+from ..constants import BLACK, ROWS, RED, SQUARE_SIZE, COLS, WHITE, GREY, BROWN
     def __init__(self, ximeaCamera):
         self.ximeaCamera = ximeaCamera
         self._init()
