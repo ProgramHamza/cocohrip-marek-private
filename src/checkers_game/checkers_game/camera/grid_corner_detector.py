@@ -60,13 +60,19 @@ class GridCornerDetector:
         contour_binary = cv2.dilate(contour_binary, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)), iterations=1)
 
         raw_lines = self._detect_lines(closed)
-        lines = self._merge_collinear_segments(raw_lines, image.shape[:2]) if raw_lines else []
-        thickness_lines, thickness_scores = self._filter_lines_by_thickness(lines, contour_binary)
+        merged_lines = self._merge_collinear_segments(raw_lines, image.shape[:2]) if raw_lines else []
+        thickness_lines, thickness_scores = self._filter_lines_by_thickness(merged_lines, contour_binary)
         lines = thickness_lines
+
+        # Parallel reference detector (legacy-like), used for cross-check only.
+        legacy_corners, legacy_score = self._legacy_reference_corners(merged_lines, image)
+
         selected_a = []
         selected_b = []
         intersections = []
         corners = None
+        current_score = None
+        selected_source = "current"
         family_stats: Dict[str, Dict[str, float]] = {}
         outline_lines = []
         outline_scores = []
@@ -83,6 +89,7 @@ class GridCornerDetector:
                     outline_lines = selected_a + selected_b
                     intersections = self._intersections(selected_a, selected_b, image.shape[:2])
                     corners = best_corners
+                    current_score = float(best_outline_score)
                     outline_scores.append(float(best_outline_score))
 
         if lines and corners is None:
@@ -105,9 +112,22 @@ class GridCornerDetector:
                         selected_b = pair_b
                         intersections = self._intersections(selected_a, selected_b, image.shape[:2])
                         corners = best_corners
+                        current_score = float(self._checkerboard_region_score(gray, best_corners))
                     else:
                         intersections = self._intersections(selected_a, selected_b, image.shape[:2])
                         corners = self._corners_from_extreme_lines(selected_a, selected_b)
+                        if corners is not None:
+                            current_score = float(self._checkerboard_region_score(gray, corners))
+
+        # Prefer current detector always; use legacy only as emergency fallback.
+        if corners is None and legacy_corners is not None:
+            corners = legacy_corners
+            intersections = []
+            selected_source = "legacy-fallback"
+
+        agreement = None
+        if corners is not None and legacy_corners is not None:
+            agreement = float(self._corner_agreement(corners, legacy_corners))
 
         result = None
         if corners is not None and (len(intersections) >= 4):
@@ -126,7 +146,7 @@ class GridCornerDetector:
             "closed": closed,
             "contour_binary": contour_binary,
             "all_lines": raw_lines,
-            "merged_lines": lines,
+            "merged_lines": merged_lines,
             "thickness_scores": thickness_scores,
             "thickness_pass_count": len(thickness_lines),
             "outline_lines": outline_lines,
@@ -135,6 +155,11 @@ class GridCornerDetector:
             "horizontal_lines": selected_b,
             "intersections": intersections,
             "corners": corners,
+            "selected_source": selected_source,
+            "current_score": current_score,
+            "legacy_corners": legacy_corners,
+            "legacy_score": legacy_score,
+            "corner_agreement": agreement,
             "family_stats": family_stats,
         }
         return result, debug
@@ -538,6 +563,39 @@ class GridCornerDetector:
         x = pts[:, 0]
         y = pts[:, 1]
         return 0.5 * abs(float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))))
+
+    def _legacy_reference_corners(self, merged_lines: List[Tuple[int, int, int, int]], image: np.ndarray):
+        """Legacy-style reference path for comparison (not primary decision)."""
+        if len(merged_lines) < 4:
+            return None, None
+
+        families = self._cluster_lines(merged_lines)
+        if families is None:
+            return None, None
+
+        fam_a, fam_b = families
+        if len(fam_a) < 2 or len(fam_b) < 2:
+            return None, None
+
+        fam_a = self._sort_family_by_position(fam_a)
+        fam_b = self._sort_family_by_position(fam_b)
+        corners = self._corners_from_extreme_lines([fam_a[0], fam_a[-1]], [fam_b[0], fam_b[-1]])
+        if corners is None:
+            return None, None
+
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        score = float(self._checkerboard_region_score(gray, corners))
+        return corners, score
+
+    def _corner_agreement(self, c1: np.ndarray, c2: np.ndarray) -> float:
+        """Agreement in [0,1], higher means corner sets are closer."""
+        a = np.array(c1, dtype=np.float32).reshape(4, 2)
+        b = np.array(c2, dtype=np.float32).reshape(4, 2)
+        dist = np.linalg.norm(a - b, axis=1)
+        mean_dist = float(np.mean(dist))
+        diag = float(math.hypot(float(np.max(a[:, 0]) - np.min(a[:, 0])), float(np.max(a[:, 1]) - np.min(a[:, 1])))) + 1e-6
+        normalized = mean_dist / diag
+        return max(0.0, 1.0 - normalized)
 
     def _descriptor_matches_category(self, descriptor: Dict, category: List[Dict]) -> bool:
         angles = [c["angle"] for c in category]

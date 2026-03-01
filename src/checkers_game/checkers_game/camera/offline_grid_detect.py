@@ -98,6 +98,16 @@ def make_stage_panel(frame: np.ndarray, debug: dict, detected: bool) -> np.ndarr
         for idx in range(4):
             cv2.line(i_overlay, tuple(pts[idx]), tuple(pts[(idx + 1) % 4]), (0, 255, 0), 2)
 
+    compare_overlay = base.copy()
+    if debug.get("legacy_corners") is not None:
+        legacy_pts = debug["legacy_corners"].astype(int)
+        for idx in range(4):
+            cv2.line(compare_overlay, tuple(legacy_pts[idx]), tuple(legacy_pts[(idx + 1) % 4]), (0, 165, 255), 2)
+    if debug.get("corners") is not None:
+        cur_pts = debug["corners"].astype(int)
+        for idx in range(4):
+            cv2.line(compare_overlay, tuple(cur_pts[idx]), tuple(cur_pts[(idx + 1) % 4]), (0, 255, 0), 2)
+
     gray = to_bgr(debug["gray"])
     clahe = to_bgr(debug["clahe"])
     edges = to_bgr(debug["edges"])
@@ -108,7 +118,7 @@ def make_stage_panel(frame: np.ndarray, debug: dict, detected: bool) -> np.ndarr
 
     top = np.hstack([base, gray, clahe])
     mid = np.hstack([edges, closed_with_raw, contour_overlay])
-    bot = np.hstack([v_lines_overlay, i_overlay, base])
+    bot = np.hstack([v_lines_overlay, i_overlay, compare_overlay])
     panel = np.vstack([top, mid, bot])
 
     status = "DETECTED" if detected else "SEARCHING"
@@ -116,7 +126,7 @@ def make_stage_panel(frame: np.ndarray, debug: dict, detected: bool) -> np.ndarr
     cv2.putText(panel, f"Pipeline status: {status}", (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 2)
     cv2.putText(panel, "Top: original | gray | contrast(CLAHE)", (20, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
     cv2.putText(panel, "Mid: edges | morphology + extracted lines (5th) | contour-map + outline", (20, 95), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-    cv2.putText(panel, "Bot: clustered lines | intersections+corners | original", (20, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+    cv2.putText(panel, "Bot: clustered lines | intersections+corners | current(green) vs legacy(orange)", (20, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
     total_lines = len(debug.get("all_lines", []))
     merged_lines = len(debug.get("merged_lines", []))
@@ -129,6 +139,10 @@ def make_stage_panel(frame: np.ndarray, debug: dict, detected: bool) -> np.ndarr
                 (20, 145), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 2)
 
     stats = debug.get("family_stats", {})
+    source = debug.get("selected_source", "current")
+    cur_score = debug.get("current_score", None)
+    leg_score = debug.get("legacy_score", None)
+    agree = debug.get("corner_agreement", None)
     outline_scores = debug.get("outline_scores", [])
     a = stats.get("family_a", {})
     b = stats.get("family_b", {})
@@ -152,6 +166,11 @@ def make_stage_panel(frame: np.ndarray, debug: dict, detected: bool) -> np.ndarr
     if outline_scores:
         top_scores = sorted([float(s) for s in outline_scores], reverse=True)[:4]
         cv2.putText(panel, f"Outline category sizes: {top_scores}", (20, 245), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 2)
+    cur_txt = f"{cur_score:.3f}" if isinstance(cur_score, (int, float)) else "n/a"
+    leg_txt = f"{leg_score:.3f}" if isinstance(leg_score, (int, float)) else "n/a"
+    agr_txt = f"{agree:.3f}" if isinstance(agree, (int, float)) else "n/a"
+    cv2.putText(panel, f"Source={source}  current_score={cur_txt}  legacy_score={leg_txt}  agree={agr_txt}",
+                (20, 270), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 2)
     return panel
 
 
