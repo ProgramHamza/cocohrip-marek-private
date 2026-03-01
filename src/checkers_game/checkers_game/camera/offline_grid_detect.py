@@ -30,6 +30,10 @@ def parse_args():
     parser.add_argument("--spacing-tol", type=float, default=0.90, help="Allowed std/mean ratio for line spacing consistency")
     parser.add_argument("--merge-angle-tol", type=float, default=4.0, help="Angular tolerance for merging short collinear segments (deg)")
     parser.add_argument("--merge-dist-px", type=float, default=6.0, help="Distance tolerance in px for merging collinear segments")
+    parser.add_argument("--thickness-threshold", type=float, default=0.36, help="Contour-thickness periodicity threshold for keeping a line")
+    parser.add_argument("--thickness-min-keep", type=int, default=18, help="Minimum number of lines to keep after thickness filtering fallback")
+    parser.add_argument("--outline-mod-threshold", type=float, default=0.40, help="Threshold for contour-thickness modulation outline detector")
+    parser.add_argument("--outline-min-length-ratio", type=float, default=0.22, help="Minimum line length ratio for outline candidate lines")
     return parser.parse_args()
 
 
@@ -74,6 +78,10 @@ def make_stage_panel(frame: np.ndarray, debug: dict, detected: bool) -> np.ndarr
     for x1, y1, x2, y2 in debug.get("merged_lines", []):
         cv2.line(merged_overlay, (x1, y1), (x2, y2), (0, 255, 255), 2)
 
+    contour_overlay = to_bgr(debug.get("contour_binary", np.zeros(frame.shape[:2], dtype=np.uint8)))
+    for x1, y1, x2, y2 in debug.get("outline_lines", []):
+        cv2.line(contour_overlay, (x1, y1), (x2, y2), (0, 0, 255), 3)
+
     for x1, y1, x2, y2 in debug.get("vertical_lines", []):
         cv2.line(v_lines_overlay, (x1, y1), (x2, y2), (0, 255, 0), 2)
     for x1, y1, x2, y2 in debug.get("horizontal_lines", []):
@@ -94,9 +102,12 @@ def make_stage_panel(frame: np.ndarray, debug: dict, detected: bool) -> np.ndarr
     clahe = to_bgr(debug["clahe"])
     edges = to_bgr(debug["edges"])
     closed = to_bgr(debug["closed"])
+    closed_with_raw = closed.copy()
+    for x1, y1, x2, y2 in debug.get("all_lines", []):
+        cv2.line(closed_with_raw, (x1, y1), (x2, y2), (0, 255, 255), 2)
 
     top = np.hstack([base, gray, clahe])
-    mid = np.hstack([edges, closed, merged_overlay])
+    mid = np.hstack([edges, closed_with_raw, contour_overlay])
     bot = np.hstack([v_lines_overlay, i_overlay, base])
     panel = np.vstack([top, mid, bot])
 
@@ -104,18 +115,21 @@ def make_stage_panel(frame: np.ndarray, debug: dict, detected: bool) -> np.ndarr
     color = (0, 255, 0) if detected else (0, 165, 255)
     cv2.putText(panel, f"Pipeline status: {status}", (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 2)
     cv2.putText(panel, "Top: original | gray | contrast(CLAHE)", (20, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-    cv2.putText(panel, "Mid: edges | morphology | merged(infinite-like) lines", (20, 95), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+    cv2.putText(panel, "Mid: edges | morphology + extracted lines (5th) | contour-map + outline", (20, 95), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
     cv2.putText(panel, "Bot: clustered lines | intersections+corners | original", (20, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
     total_lines = len(debug.get("all_lines", []))
     merged_lines = len(debug.get("merged_lines", []))
+    thickness_pass = int(debug.get("thickness_pass_count", 0))
+    outline_lines = len(debug.get("outline_lines", []))
     v_count = len(debug.get("vertical_lines", []))
     h_count = len(debug.get("horizontal_lines", []))
     intersections = len(debug.get("intersections", []))
-    cv2.putText(panel, f"raw_lines={total_lines} merged_lines={merged_lines} familyA={v_count} familyB={h_count} intersections={intersections}",
+    cv2.putText(panel, f"raw={total_lines} merged={merged_lines} thickness_pass={thickness_pass} outline={outline_lines} familyA={v_count} familyB={h_count} inter={intersections}",
                 (20, 145), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 2)
 
     stats = debug.get("family_stats", {})
+    outline_scores = debug.get("outline_scores", [])
     a = stats.get("family_a", {})
     b = stats.get("family_b", {})
     a_in = int(a.get("input_count", 0))
@@ -135,6 +149,9 @@ def make_stage_panel(frame: np.ndarray, debug: dict, detected: bool) -> np.ndarr
     cv2.putText(panel, f"A gap mean/std: {a_gap:.2f}/{a_std:.2f}   B gap mean/std: {b_gap:.2f}/{b_std:.2f}",
                 (20, 195), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 2)
     cv2.putText(panel, f"Adaptive angle tol A/B: {a_tol:.1f}/{b_tol:.1f} deg", (20, 220), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 2)
+    if outline_scores:
+        top_scores = sorted([float(s) for s in outline_scores], reverse=True)[:4]
+        cv2.putText(panel, f"Outline category sizes: {top_scores}", (20, 245), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 2)
     return panel
 
 
@@ -184,6 +201,10 @@ def main():
     detector.spacing_tolerance_ratio = max(0.1, float(args.spacing_tol))
     detector.merge_angle_tolerance_deg = max(0.5, float(args.merge_angle_tol))
     detector.merge_distance_tolerance_px = max(1.0, float(args.merge_dist_px))
+    detector.thickness_score_threshold = max(0.01, float(args.thickness_threshold))
+    detector.thickness_min_keep = max(6, int(args.thickness_min_keep))
+    detector.outline_modulation_threshold = max(0.05, float(args.outline_mod_threshold))
+    detector.outline_min_length_ratio = max(0.05, min(0.8, float(args.outline_min_length_ratio)))
     detected = None
     frame_idx = 0
 
