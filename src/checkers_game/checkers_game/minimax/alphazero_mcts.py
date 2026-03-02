@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from ..constants import BLACK, WHITE
 from ..checkers.board import Board
 from .algorithm import get_all_moves
-from .alphazero_model import action_index, AZNet
+from .alphazero_model import action_index, AZNet, ACTION_SIZE
 
 
 class AZNode:
